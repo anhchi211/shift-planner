@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Restaurant Shift Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — period bar, tab switch, then the rota grids scroll sideways inside their own frames, like the Excel sheet */
+:root{
+  --bg:#f5f4ee; --surface:#ffffff; --surface2:#edece3; --line:#d9d7ca; --fg:#22231c; --muted:#6a6b5f;
+  --wk:#ecd04a; --wk-fg:#2b2600; --we:#5e8e38; --we-fg:#ffffff;
+  --accent:#3b6a28; --accent-fg:#ffffff;
+  --ok-bg:#e2eed4; --ok:#2e5a1b; --part-bg:#f6ebc3; --part:#6a5300; --off:#9e4433; --off-bg:#f4e1da;
+  --warn:#c4512c; --shadow:0 10px 30px rgba(40,42,20,.18);
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --f-body:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15160f; --surface:#1e1f17; --surface2:#292a21; --line:#393a2f; --fg:#ecebe1; --muted:#a3a495;
+  --wk:#c8a928; --wk-fg:#1b1700; --we:#4c7a2e; --we-fg:#f2f7ec;
+  --accent:#93c46c; --accent-fg:#13200a;
+  --ok-bg:#23331a; --ok:#b5dc95; --part-bg:#3a3214; --part:#ebd27c; --off:#f0a390; --off-bg:#3b211b;
+  --warn:#f08b65; --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#15160f; --surface:#1e1f17; --surface2:#292a21; --line:#393a2f; --fg:#ecebe1; --muted:#a3a495;
+  --wk:#c8a928; --wk-fg:#1b1700; --we:#4c7a2e; --we-fg:#f2f7ec;
+  --accent:#93c46c; --accent-fg:#13200a;
+  --ok-bg:#23331a; --ok:#b5dc95; --part-bg:#3a3214; --part:#ebd27c; --off:#f0a390; --off-bg:#3b211b;
+  --warn:#f08b65; --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:16px 96px;display:flex;flex-direction:column;gap:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.45rem;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:600;font-size:1.1rem;margin:0}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.status{font-size:.8rem;color:var(--muted)}
+.period{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;width:100%;text-align:left}
+.period .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.period .rng{font-family:var(--f-display);font-weight:600;font-size:1.05rem}
+.period .chev{margin-left:auto;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface2);border-radius:12px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.tabs button{border:0;background:transparent;border-radius:9px;padding:9px 4px;font-weight:600;font-size:.88rem;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;font-weight:600;font-size:.9rem;display:inline-flex;align-items:center;gap:6px}
+.btn.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.danger{color:var(--off);border-color:var(--off)}
+.btn.sm{padding:6px 10px;font-size:.82rem}
+.btn:disabled{opacity:.5;cursor:default}
+.hint{font-size:.85rem;color:var(--muted);max-width:65ch;margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:.78rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid var(--line)}
+.week{display:flex;flex-direction:column;gap:6px}
+.wk-title{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;text-align:center}
+tr:last-child>*{border-bottom:0}
+th:last-child,td:last-child{border-right:0}
+thead th{font-weight:600;font-size:.72rem;padding:5px 4px;line-height:1.15}
+thead th b{display:block;font-family:var(--f-display);font-size:1.05rem}
+thead th.wd{background:var(--wk);color:var(--wk-fg)}
+thead th.we{background:var(--we);color:var(--we-fg)}
+th.nm{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;font-weight:600;font-size:.86rem;min-width:92px;max-width:110px;padding:0}
+thead th.nm{background:var(--surface2);font-size:.72rem;color:var(--muted);padding:5px 8px;text-transform:uppercase;letter-spacing:.06em}
+.nmbtn{display:flex;flex-direction:column;align-items:flex-start;width:100%;border:0;background:transparent;padding:8px;text-align:left;font-weight:600;gap:1px;overflow:hidden}
+.nmbtn small{font-weight:500;font-size:.68rem;color:var(--muted)}
+.nmbtn small.ns{color:var(--warn)}
+.cell{display:flex;align-items:center;justify-content:center;width:100%;min-width:78px;min-height:44px;border:0;background:transparent;font-family:var(--f-mono);font-size:.76rem;letter-spacing:-.02em;padding:4px 3px;position:relative}
+.cell.full{background:var(--ok-bg);color:var(--ok);font-weight:500}
+.cell.part{background:var(--part-bg);color:var(--part);font-weight:500}
+.cell.off{color:var(--off);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--off-bg) 6px 8px)}
+.cell.none{color:var(--muted)}
+.cell.shift{background:var(--surface);color:var(--fg);font-weight:500;box-shadow:inset 0 0 0 2px var(--accent)}
+.cell.shift.manual::after{content:"";position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.cell.shift.clash{box-shadow:inset 0 0 0 2px var(--warn);color:var(--warn)}
+.cell.free{color:var(--ok);opacity:.75}
+td.hrs,th.hrs{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);min-width:44px;padding:4px}
+tr.cov th.nm{font-size:.72rem;color:var(--muted);padding:6px 8px;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
+tr.cov td{background:var(--surface2);font-family:var(--f-mono);font-size:.75rem;padding:6px 2px}
+tr.cov td.short{color:var(--warn);font-weight:600}
+tr.cov td.okc{color:var(--ok)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.staffblock{display:flex;flex-direction:column;gap:8px;padding-block:10px;border-bottom:1px solid var(--line)}
+.staffblock:last-of-type{border-bottom:0}
+.staffrow{display:grid;grid-template-columns:1fr 74px auto;gap:8px;align-items:center}
+.chip.fx{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.chip.fx b{font-family:var(--f-body);font-weight:600}
+.slotlist{display:flex;flex-direction:column;gap:6px}
+.slotrow{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface2);border-radius:10px;padding:6px 6px 6px 12px}
+.slotlbl{font-weight:600;font-size:.9rem}
+.times{display:flex;flex-direction:column;gap:6px}
+.trow{display:grid;grid-template-columns:minmax(5.5em,auto) 1fr auto 1fr;gap:6px;align-items:center;font-size:.85rem}
+.trow .inp{min-width:0}
+.covc{line-height:1.5;white-space:nowrap}
+.cell.part.fixedav{background:var(--ok-bg);color:var(--ok)}
+.cell.part.fixedav::before{content:"📌";position:absolute;top:2px;left:3px;font-size:.55rem}
+.covc.short{color:var(--warn);font-weight:600}
+.covc.okc{color:var(--ok)}
+.slottime{font-family:var(--f-mono);font-size:.88rem;font-weight:500}
+.stepper{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
+.stepper span{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums}
+.stepper button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:1.05rem;font-weight:600;color:var(--fg)}
+.btn.ghost{border-style:dashed;background:transparent;color:var(--muted)}
+.inp{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+.inp.sm{padding:7px 8px}
+.icons{display:flex;gap:4px}
+.ic{width:36px;height:36px;border:1px solid var(--line);background:var(--surface);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem}
+.colhead{display:grid;grid-template-columns:1fr 74px auto;gap:8px;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:5px 6px 5px 11px;font-family:var(--f-mono);font-size:.8rem}
+.chip button{border:0;background:transparent;width:22px;height:22px;border-radius:50%;color:var(--muted)}
+.addrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.addrow input[type=time]{width:auto;flex:1 1 100px}
+.daytag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.75rem;font-weight:600}
+.daytag.wd{background:var(--wk);color:var(--wk-fg)}
+.daytag.we{background:var(--we);color:var(--we-fg)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:12px}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,12,5,.45);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--surface);border-radius:18px 18px 0 0;box-shadow:var(--shadow);max-height:86vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;max-width:560px;margin:0 auto}
+.sheet .sub{font-size:.85rem;color:var(--muted)}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.opt{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:11px 8px;font-family:var(--f-mono);font-size:.85rem;font-weight:500}
+.opt.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.opt.fullo{background:var(--ok-bg);color:var(--ok)}
+.opt.offo{background:var(--off-bg);color:var(--off)}
+.opt.parto{background:var(--part-bg);color:var(--part)}
+.sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.msg{font-size:.85rem;padding:8px 10px;border-radius:9px;background:var(--surface2)}
+.msg.err{color:var(--off);background:var(--off-bg)}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+textarea.inp{min-height:84px;resize:vertical}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:30;max-width:calc(100% - 32px);box-shadow:var(--shadow)}
+.plist{display:flex;flex-direction:column;gap:6px}
+.pitem{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);width:100%;text-align:left}
+.pitem.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pitem small{color:var(--muted)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.85rem}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="top">
+    <h1 id="h1">Shift Planner</h1>
+    <div class="bar"><span class="status" id="status">Loading…</span><button class="btn sm" id="langBtn" data-act="lang" aria-label="Language">中文</button></div>
+  </div>
+  <button class="period" id="periodBtn" data-act="periods">
+    <div><div class="lbl" id="plbl">Rota period · 3 weeks</div><div class="rng" id="periodLbl">—</div></div>
+    <span class="chev" id="pchg">Change ▾</span>
+  </button>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="avail" aria-selected="true">Availability</button>
+    <button role="tab" data-tab="sched" aria-selected="false">Schedule</button>
+    <button role="tab" data-tab="staff" aria-selected="false">Staff</button>
+    <button role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
+  </div>
+  <main id="main"><div class="empty">Loading…</div></main>
+</div>
+<div id="sheetHost"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const I18N={
+en:{
+  days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+  months:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+  date:(d,m,y)=>d+' '+m+(y?' '+y:''),
+  title:'Shift Planner', periodLbl:'Rota period · 3 weeks', change:'Change ▾', noPeriod:'No period yet', loading:'Loading…',
+  tabs:{avail:'Availability',sched:'Schedule',staff:'Staff',shifts:'Shifts'},
+  saving:'Saving…', saved:'All changes saved', savedLocal:'Saved in this browser', viewOnly:'View only',
+  quota:'Storage full — delete an old period', notSaved:'Not saved — check your connection', syncStopped:'Live sync stopped — reload the page',
+  cantEdit:'You can view this rota but not change it.', viewOnlyCopy:'This copy is view-only.',
+  noPeriodYet:'No rota period yet.', startPeriod:'Start a 3-week period', addTeamFirst:'Add your team first.', goStaff:'Go to Staff',
+  staffCol:'Staff', week:n=>'Week '+n,
+  availHint:'Tap a person\'s name to fill their whole period from a screenshot or message; tap a day to set it by hand.',
+  availHintNoAI:'Tap a day to set it by hand, or tap a name to fill the whole row.',
+  avClearQ:'Clear availability?', avClearSub:'Removes what everyone sent for this period. The schedule stays.', clearKeep:'Clear, keep fixed shifts', clearAllBtn:'Clear everything', avClearedKept:'Cleared. Fixed shifts are back in availability.',
+  pasteLocal:'Paste or type their days here', fmtHint:'Format: day number + x (off), all (whole day) or hours. Example: 5 x, 6 17-21:30, 8 all, 14 10h30-17h', backup:'Backup', backupHint:'Save a backup file to keep a copy of the rota, or load one to restore it.', bkExport:'Save backup file', bkImport:'Load backup file', bkDone:'Backup file saved.', bkLoaded:'Backup loaded.', bkBad:'That file isn\'t a Shift Planner backup.',
+  synced:'Synced', offline:'Offline — will sync when back online', codeTitle:'Team code', codeSub:'Enter the team code to open the shared rota. You only need to do this once on each device.', codePh:'Team code', codeGo:'Open rota', codeWrong:'That code isn\'t right. Try again.',
+  fixAvail:'📌 Add fixed shifts', fixAvailDone:n=>n?'Added '+n+' fixed-shift day'+(n>1?'s':'')+' to availability.':'Fixed shifts are already in availability.',
+  wholeDay:'Whole day', someHours:'Some hours', cantWork:'Can\'t work', notSent:'Not sent',
+  allDay:'All day', fillEdit:'Fill / edit ›', notSentArrow:'Not sent ›',
+  nextDraft:'Next: draft the schedule →', waiting:'Still waiting on: ',
+  autoDraft:'⚡ Auto-draft', exportXlsx:'Export Excel', clear:'Clear',
+  schedHint:'Auto-draft places fixed shifts first, then covers each day\'s morning (☀) and evening (☾) from availability, mixing full and half shifts and spreading hours evenly. Shifts you set by hand get a dot and stay put when you draft again. Press it again for a different version.',
+  hrs:'Hrs', staffed:'Staffed', shift:'Shift', outside:'Outside their availability', freeDay:'+ free that day',
+  team:'Team', teamHint:'Rename anyone here and every period updates. Max shifts per week is optional; auto-draft won\'t go over it. Fixed shifts repeat every week and are placed first, unless that person marked the day off.',
+  name:'Name', maxwk:'Max/wk', noOne:'No one yet. Add your first person below.', newName:'New person\'s name', add:'Add',
+  addFixed:'+ Fixed shift', moveUp:'Move up', remove:'Remove',
+  shiftsHint:'How many people each day needs in the morning and in the evening. A full-day shift counts for both; a half shift counts for one. Auto-draft mixes full and half shifts to cover both. Changes apply to all periods.',
+  morning:'Morning', evening:'Evening', shiftTimes:'Shift times', full:'Full day', am:'Morning half', pm:'Evening half', needAm:'Morning', needPm:'Evening',
+  people:n=>n+(n===1?' person':' people'), closed:'Closed', copyMon:'Copy Monday to Tue–Thu', resetSlots:'Reset to defaults',
+  noAvail:'No availability sent', availAll:'Available all day', availR:r=>'Available '+r, working:r=>' · Working '+r,
+  otherHours:'Other hours', set:'Set', done:'Done', cancel:'Cancel',
+  fillFrom:'Fill from what they sent you', readShot:'📷 Read a screenshot', pastePh:'…or paste their message or picture here (Ctrl/Cmd+V), e.g. “Mon off, Tue 17-21:30, Wed whole day”', readMsg:'Read message',
+  quickFill:'Quick fill', availEvery:'Available every day', clearAll:'Clear all days', removeShift:'Remove shift',
+  fixedTitle:n=>'Fixed shift · '+n, fixedSub:'Repeats every week in every period.', saveFixed:'Save fixed shift', removeFixed:'Remove fixed shift',
+  periodsTitle:'Rota periods', sent:(a,b)=>a+'/'+b+' sent', noneYet:'None yet.', newPeriod:'Start a new 3-week period', create:'Create', pickMonday:'Pick the Monday it starts on.',
+  delPeriod:d=>'Delete '+d+' period', delPeriodQ:'Delete this period and its schedule?', del:'Delete', keep:'Keep',
+  reading:'Reading… this can take up to a minute.', noDates:'I couldn\'t find any dates for this period in it. Check the dates and try again.',
+  filled:n=>'Filled '+n+' of 21 days. Check them in the grid, then tap Done.',
+  errRate:'Too many requests just now. Try again in a minute.', errImg:'That image couldn\'t be read. Try a clearer screenshot.', errJson:'I couldn\'t make sense of the answer. Try again.',
+  errRefused:'That couldn\'t be read. Try a different screenshot or type it in.', errSession:'Sign in to Claude again, then retry.', errOff:'Reading screenshots isn\'t turned on here. Tap the days by hand instead.', errAny:'Something went wrong. Try again.', errNoImg:'Pictures can\'t be read on this device. Try the Claude app on your phone, or type their days in the box.', imgPasted:'Picture received — reading it…',
+  xlsxLoad:'Couldn\'t load the Excel tool. Check your connection.', xlsxSaved:'Excel file downloaded.', xlsxFail:'Couldn\'t save the file here.', sheetName:'Schedule',
+  markedAll:'Marked available every day.', cleared:'Cleared.', pasteFirst:'Paste their message first.',
+  drafted:n=>n?'Drafted. '+n+' spot'+(n>1?'s':'')+' still short — see the red counts.':'Drafted. Every shift is covered.',
+  clearQ:'Clear this schedule?', clearSub:'Removes every shift in this period, including ones you set by hand. Availability stays.', clearBtn:'Clear schedule',
+  removeQ:n=>'Remove '+n+' from the team? Past schedules keep their shifts hidden.',
+  copied:'Copied to Tue, Wed and Thu.', endAfter:'End time must be after start time.', pickMon:'Pick a Monday so the weeks line up.',
+  day:'Day', start:'Start', end:'End', langBtn:'中文'
+},
+zh:{
+  days:['周一','周二','周三','周四','周五','周六','周日'],
+  months:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+  date:(d,m,y)=>(y?y+'年':'')+m+d+'日',
+  title:'排班助手', periodLbl:'排班周期 · 3周', change:'切换 ▾', noPeriod:'还没有排班周期', loading:'加载中…',
+  tabs:{avail:'可上班时间',sched:'排班表',staff:'员工',shifts:'班次'},
+  saving:'保存中…', saved:'已全部保存', savedLocal:'仅保存在本设备', viewOnly:'只读',
+  quota:'存储已满，请删除旧的周期', notSaved:'未保存，请检查网络', syncStopped:'同步已中断，请刷新页面',
+  cantEdit:'你只能查看此排班表，不能修改。', viewOnlyCopy:'此副本为只读。',
+  noPeriodYet:'还没有排班周期。', startPeriod:'新建3周排班', addTeamFirst:'请先添加员工。', goStaff:'去添加员工',
+  staffCol:'员工', week:n=>'第'+n+'周',
+  availHint:'点员工名字，可上传截图或粘贴消息，一次填好整个周期；点某一天可手动设置。',
+  availHintNoAI:'点某一天手动设置，或点员工名字快速填写整行。',
+  avClearQ:'清空可上班时间？', avClearSub:'会删除本周期所有人提交的可上班时间，排班表保留。', clearKeep:'清空，保留固定班', clearAllBtn:'全部清空', avClearedKept:'已清空，固定班已重新填入。',
+  pasteLocal:'在这里粘贴或输入员工的日期', fmtHint:'格式：日期数字 + x（休息）、all（全天）或时间。例如：5 x, 6 17-21:30, 8 all, 14 10h30-17h', backup:'备份', backupHint:'保存备份文件以留存一份排班表，或载入备份来恢复。', bkExport:'保存备份文件', bkImport:'载入备份文件', bkDone:'备份文件已保存。', bkLoaded:'备份已载入。', bkBad:'这不是排班助手的备份文件。',
+  synced:'已同步', offline:'离线，联网后会同步', codeTitle:'团队密码', codeSub:'输入团队密码即可打开共享排班表。每台设备只需输入一次。', codePh:'团队密码', codeGo:'打开排班表', codeWrong:'密码不对，请再试一次。',
+  fixAvail:'📌 填入固定班', fixAvailDone:n=>n?'已把'+n+'天固定班填入可上班时间。':'固定班已经都在可上班时间里了。',
+  wholeDay:'全天', someHours:'部分时间', cantWork:'不能上班', notSent:'未提交',
+  allDay:'全天', fillEdit:'填写 / 修改 ›', notSentArrow:'未提交 ›',
+  nextDraft:'下一步：生成排班 →', waiting:'还在等：',
+  autoDraft:'⚡ 自动排班', exportXlsx:'导出 Excel', clear:'清空',
+  schedHint:'自动排班会先安排固定班，再根据可上班时间排满每天的早班（☀）和晚班（☾），混合全天班和半班，并尽量平均分配工时。手动设置的班次带圆点，重新排班时不会被改动。再按一次可得到另一种方案。',
+  hrs:'工时', staffed:'已排', shift:'班次', outside:'超出可上班时间', freeDay:'+ 当天有空',
+  team:'员工', teamHint:'在这里改名，所有周期都会同步更新。每周最多班数可不填；自动排班不会超过这个数。固定班每周重复，并优先安排，除非员工当天标记不能上班。',
+  name:'姓名', maxwk:'每周最多', noOne:'还没有员工，请在下方添加。', newName:'新员工姓名', add:'添加',
+  addFixed:'+ 固定班', moveUp:'上移', remove:'删除',
+  shiftsHint:'每天早班和晚班各需要几个人。全天班同时算早班和晚班，半班只算一个。自动排班会混合安排全天班和半班来排满。修改对所有周期生效。',
+  morning:'早班', evening:'晚班', shiftTimes:'班次时间', full:'全天班', am:'早半班', pm:'晚半班', needAm:'早班', needPm:'晚班',
+  people:n=>n+'人', closed:'休息', copyMon:'把周一复制到周二至周四', resetSlots:'恢复默认班次',
+  noAvail:'未提交可上班时间', availAll:'全天可上班', availR:r=>'可上班 '+r, working:r=>' · 上班 '+r,
+  otherHours:'其他时间', set:'设定', done:'完成', cancel:'取消',
+  fillFrom:'根据员工发来的内容填写', readShot:'📷 读取截图', pastePh:'…或在这里粘贴员工的消息或图片（Ctrl/Cmd+V），例如“周一休息，周二17-21:30，周三全天”', readMsg:'读取消息',
+  quickFill:'快速填写', availEvery:'每天都可以', clearAll:'清空所有天', removeShift:'删除班次',
+  fixedTitle:n=>'固定班 · '+n, fixedSub:'每个周期的每周都会重复。', saveFixed:'保存固定班', removeFixed:'删除固定班',
+  periodsTitle:'排班周期', sent:(a,b)=>'已提交 '+a+'/'+b, noneYet:'还没有。', newPeriod:'新建3周排班周期', create:'新建', pickMonday:'请选择开始的那个周一。',
+  delPeriod:d=>'删除 '+d+' 开始的周期', delPeriodQ:'确定删除这个周期及其排班吗？', del:'删除', keep:'保留',
+  reading:'读取中…最多需要一分钟。', noDates:'没有找到这个周期内的日期，请检查日期后重试。',
+  filled:n=>'已填好21天中的'+n+'天。请在表格中核对，然后点完成。',
+  errRate:'请求太多，请一分钟后再试。', errImg:'无法读取这张图片，请换一张更清晰的截图。', errJson:'无法理解结果，请再试一次。',
+  errRefused:'无法读取，请换一张截图或手动输入。', errSession:'请重新登录 Claude 后再试。', errOff:'此处未开启截图读取功能，请手动点选日期。', errAny:'出了点问题，请再试一次。', errNoImg:'此设备无法读取图片。请用手机上的 Claude 应用，或在框里输入日期。', imgPasted:'已收到图片，正在读取…',
+  xlsxLoad:'无法加载 Excel 工具，请检查网络。', xlsxSaved:'Excel 文件已保存。', xlsxFail:'无法在这里保存文件。', sheetName:'排班表',
+  markedAll:'已设为每天可上班。', cleared:'已清空。', pasteFirst:'请先粘贴消息。',
+  drafted:n=>n?'已生成排班。还缺'+n+'个人次，见红色数字。':'已生成排班，所有班次都已排满。',
+  clearQ:'清空这个排班表？', clearSub:'会删除本周期所有班次，包括手动设置的。可上班时间会保留。', clearBtn:'清空排班',
+  removeQ:n=>'确定从员工名单中删除'+n+'吗？以前的排班会隐藏此人的班次。',
+  copied:'已复制到周二、周三、周四。', endAfter:'结束时间必须晚于开始时间。', pickMon:'请选择周一，这样每周才能对齐。',
+  day:'星期', start:'开始', end:'结束', langBtn:'EN'
+}};
+let lang='en';
+try{const l=localStorage.getItem('shiftplanner.lang');if(l&&I18N[l])lang=l;else if((navigator.language||'').toLowerCase().startsWith('zh'))lang='zh'}catch(e){}
+const T=k=>I18N[lang][k];
+const DN=()=>T('days');
+
+const WK={full:"10:30-21:30",am:"11:00-16:00",pm:"17:00-21:30",needAm:3,needPm:3};
+const DEFAULT_DAYS={"0":{...WK},"1":{...WK},"2":{...WK},"3":{...WK},"4":{full:"10:30-22:00",am:"11:00-16:00",pm:"17:00-22:00",needAm:3,needPm:3},"5":{full:"12:00-22:00",am:"12:00-17:00",pm:"17:00-22:00",needAm:3,needPm:3},"6":{full:"12:00-22:00",am:"12:00-17:00",pm:"17:00-22:00",needAm:3,needPm:3}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const dayCfg=i=>(config.days&&config.days[i])||DEFAULT_DAYS[i];
+function sides(v,i){const r=rng(v),sp=tm(dayCfg(i).pm.split('-')[0]);return[r[0]<sp,r[1]>sp]}
+const LS='shiftplanner.web.v1';
+const SEED={"config":{"days":{"0":{"am":"11:00-16:00","full":"10:30-21:30","needAm":3,"needPm":3,"pm":"17:00-21:30"},"1":{"am":"11:00-16:00","full":"10:30-21:30","needAm":2,"needPm":3,"pm":"17:00-21:30"},"2":{"am":"11:00-16:00","full":"10:30-21:30","needAm":3,"needPm":3,"pm":"17:00-21:30"},"3":{"am":"11:00-16:00","full":"10:30-21:30","needAm":3,"needPm":3,"pm":"17:00-21:30"},"4":{"am":"11:00-16:00","full":"10:30-22:00","needAm":2,"needPm":3,"pm":"17:00-22:00"},"5":{"am":"12:00-17:00","full":"12:00-22:00","needAm":3,"needPm":3,"pm":"17:00-22:00"},"6":{"am":"12:00-20:00","full":"12:00-22:00","needAm":2,"needPm":3,"pm":"17:00-22:00"}},"staff":[{"fixed":{"1":"11:00-16:00","2":"11:00-21:30","3":"11:00-21:30","4":"11:00-21:30","6":"12:00-22:00"},"id":"andy","name":"Andy"},{"fixed":{},"id":"sauli","name":"Sauli"},{"id":"chi","name":"Chi"},{"id":"christine","name":"Christine"},{"id":"yen","name":"Yen"},{"fixed":{"1":"11:30-21:30","2":"11:30-21:30","3":"11:30-21:30"},"id":"ferdi","name":"Ferdi"},{"id":"anh","name":"Anh"},{"id":"smuv5l5uv","name":"Kaylee"}]},"periods":{"2026-09-14":{"avail":{},"locks":{"andy":{"0":true,"1":true,"3":true,"4":true,"6":true,"8":true,"9":true,"10":true,"11":true,"13":true,"15":true,"16":true,"17":true,"18":true,"20":true},"anh":{"0":true,"5":true,"6":true,"7":true,"8":true,"10":true,"14":true,"16":true,"19":true},"chi":{"1":true,"3":true,"4":true,"5":true,"10":true,"11":true,"13":true,"15":true,"17":true,"18":true,"19":true,"20":true},"christine":{"0":true,"2":true,"4":true,"6":true,"9":true,"12":true,"14":true,"16":true,"18":true},"ferdi":{"1":true,"2":true,"3":true,"7":true,"8":true,"9":true,"15":true,"16":true,"17":true},"sauli":{"2":true,"5":true,"7":true,"12":true,"14":true,"18":true,"19":true},"yen":{"0":true,"8":true,"10":true,"11":true,"12":true,"13":true,"14":true,"15":true,"17":true,"19":true,"20":true}},"sched":{"andy":{"0":"11:00-16:00","1":"11:00-16:00","3":"11:00-21:30","4":"11:00-21:30","6":"12:00-22:00","8":"11:00-16:00","9":"11:00-21:30","10":"11:00-21:30","11":"11:00-21:30","13":"12:00-22:00","15":"11:00-16:00","16":"11:00-21:30","17":"11:00-21:30","18":"17:00-21:30","20":"12:00-22:00"},"anh":{"0":"17:00-21:30","5":"12:00-22:00","6":"12:00-20:00","7":"17:00-21:30","8":"17:00-21:30","10":"17:00-21:30","14":"17:00-21:30","16":"17:00-21:30","19":"12:00-22:00"},"chi":{"1":"10:30-21:30","3":"17:00-21:30","4":"17:30-21:30","5":"12:00-22:00","10":"11:30-21:30","11":"10:30-21:30","13":"12:00-20:00","15":"10:30-21:30","17":"17:00-21:30","18":"17:30-22:00","19":"12:00-22:00","20":"12:00-20:00"},"christine":{"0":"11:30-21:30","2":"17:00-21:30","4":"10:30-22:00","6":"17:00-21:30","9":"10:30-21:30","12":"12:00-22:00","14":"11:30-21:30","16":"10:30-15:00","18":"10:30-22:00"},"ferdi":{"1":"17:00-21:30","2":"10:30-21:30","3":"10:30-21:30","7":"10:30-21:30","8":"10:30-22:00","9":"11:30-21:30","15":"17:00-21:30","16":"11:30-21:30","17":"11:30-21:30"},"sauli":{"2":"11:00-21:30","5":"12:00-22:00","7":"11:00-21:30","12":"12:00-22:00","14":"11:00-21:30","18":"11:00-16:00","19":"17:00-21:30"},"yen":{"0":"10:30-15:00","8":"17:00-21:30","10":"10:30-15:30","11":"17:00-21:30","12":"12:00-22:00","13":"17:00-22:00","14":"10:30-15:00","15":"17:00-21:30","17":"10:30-15:00","19":"12:00-17:00","20":"17:00-22:00"}},"start":"2026-09-14"},"2026-10-05":{"avail":{"andy":{"1":"11:00-16:00","2":"11:00-21:30","3":"11:00-21:30","4":"11:00-21:30","6":"12:00-22:00","8":"11:00-16:00","9":"11:00-21:30","10":"11:00-21:30","11":"11:00-21:30","13":"12:00-22:00","15":"11:00-16:00","16":"11:00-21:30","17":"11:00-21:30","18":"11:00-21:30","20":"12:00-22:00"},"anh":{},"chi":{},"christine":{},"ferdi":{"1":"11:30-21:30","2":"11:30-21:30","3":"11:30-21:30","8":"11:30-21:30","9":"11:30-21:30","10":"11:30-21:30","15":"11:30-21:30","16":"11:30-21:30","17":"11:30-21:30"},"sauli":{},"smuv5l5uv":{},"yen":{}},"locks":{"andy":{},"christine":{"8":true},"ferdi":{}},"sched":{"andy":{"2":"11:00-21:30","3":"11:00-21:30","4":"11:00-21:30","6":"12:00-22:00","8":"11:00-16:00","9":"11:00-21:30","10":"11:00-21:30","11":"11:00-21:30","13":"12:00-22:00","15":"11:00-16:00","16":"11:00-21:30","17":"11:00-21:30","18":"11:00-21:30","20":"12:00-22:00"},"anh":{},"chi":{"1":"17:00-21:30","3":"10:30-21:30","5":"12:00-22:00","6":"12:00-22:00","9":"11:00-16:00","10":"10:30-21:30","11":"17:00-21:30","12":"12:00-22:00","13":"12:00-20:00","15":"17:00-21:30","17":"17:00-21:30","18":"17:00-21:30","19":"12:00-22:00","20":"12:00-22:00"},"christine":{"8":"11:00-21:30"},"ferdi":{"1":"11:30-21:30","2":"11:30-21:30","3":"11:30-21:30","9":"11:30-21:30","10":"11:30-21:30","15":"11:30-21:30","16":"11:30-21:30","17":"11:30-21:30"},"sauli":{"0":"11:00-21:30","5":"12:00-22:00","7":"11:00-21:30","12":"12:00-22:00","14":"11:00-21:30","19":"12:00-22:00"},"yen":{}},"start":"2026-10-05"},"2026-10-26":{"avail":{"andy":{"1":"11:00-16:00","2":"11:00-21:30","3":"11:00-21:30","4":"11:00-21:30","6":"12:00-22:00","8":"11:00-16:00","9":"11:00-21:30","10":"11:00-21:30","11":"11:00-21:30","13":"12:00-22:00","15":"11:00-16:00","16":"11:00-21:30","17":"11:00-21:30","18":"11:00-21:30","20":"12:00-22:00"},"anh":{},"chi":{},"christine":{},"ferdi":{"1":"11:30-21:30","2":"11:30-21:30","3":"11:30-21:30","8":"11:30-21:30","9":"11:30-21:30","10":"11:30-21:30","15":"11:30-21:30","16":"11:30-21:30","17":"11:30-21:30"},"sauli":{},"smuv5l5uv":{},"yen":{}},"locks":{},"sched":{},"start":"2026-10-26"}}};
+
+let config={staff:[],days:clone(DEFAULT_DAYS)};
+let periods={}; let cur=null; let tab='avail'; let ready=false;
+let db=null, local=false, canWrite=true, sampleFn=null, imgOK=false, dl=null;
+let sheetCtx=null, sampleCtl=null, statusKey='loading';
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tm=s=>{const[h,m]=s.split(':').map(Number);return h*60+(m||0)};
+const ft=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const rng=v=>{if(!v||v==='x'||v==='all')return null;const[a,b]=v.split('-');return[tm(a),tm(b)]};
+const short=t=>t.endsWith(':00')?String(+t.slice(0,2)):t.replace(/^0/,'');
+const shortR=v=>{const[a,b]=v.split('-');return short(a)+'–'+short(b)};
+const fullR=v=>v.replace('-','–');
+function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function dObj(iso){return new Date(iso+'T00:00:00Z')}
+function fmtD(iso,yr){const d=dObj(iso);return T('date')(d.getUTCDate(),T('months')[d.getUTCMonth()],yr?d.getUTCFullYear():0)}
+function normT(s){const m=String(s).trim().match(/^(\d{1,2})(?:[:.h](\d{2}))?$/);if(!m)return null;const h=+m[1],mi=+(m[2]||0);if(h>24||mi>59)return null;return ft(h*60+mi)}
+function normRange(v){const p=String(v).split(/[-–]/);if(p.length!==2)return null;const a=normT(p[0]),b=normT(p[1]);if(!a||!b||tm(b)<=tm(a))return null;return a+'-'+b}
+const P=()=>periods[cur];
+const staffById=id=>config.staff.find(s=>s.id===id);
+
+function fit(av,slot){
+  if(!av||av==='x')return null;const[s,e]=rng(slot);
+  if(av==='all')return{s,e,full:true};
+  const r=rng(av);if(!r)return null;const[a,b]=r;
+  if(a<=s&&b>=e)return{s,e,full:true};
+  const os=Math.max(a,s),oe=Math.min(b,e);
+  return oe-os>=240?{s:os,e:oe,full:false}:null;
+}
+function within(av,shift){if(!av)return true;if(av==='x')return false;if(av==='all')return true;const a=rng(av),b=rng(shift);return a[0]<=b[0]&&a[1]>=b[1]}
+
+/* ---------- auto draft ---------- */
+function draft(p){
+  const staff=config.staff;const hours={},wk={};
+  p.sched=p.sched||{};p.locks=p.locks||{};p.avail=p.avail||{};
+  for(const s of staff){
+    const row=p.sched[s.id]||{};
+    for(const d in row){if(!(p.locks[s.id]&&p.locks[s.id][d]))delete row[d]}
+    p.sched[s.id]=row;hours[s.id]=0;wk[s.id]=[0,0,0];
+    for(const d in row){const r=rng(row[d]);hours[s.id]+=r[1]-r[0];wk[s.id][Math.floor(d/7)]++}
+  }
+  for(const s of staff){
+    const fx=s.fixed||{};
+    for(const wd in fx){for(let w=0;w<3;w++){const d=w*7+(+wd);const a=p.avail[s.id]&&p.avail[s.id][d];
+      if(p.sched[s.id][d]||a==='x')continue;const r=rng(fx[wd]);if(!r)continue;
+      p.sched[s.id][d]=fx[wd];hours[s.id]+=r[1]-r[0];wk[s.id][w]++}}
+  }
+  let open=0;
+  for(let d=0;d<21;d++){
+    const w=Math.floor(d/7),wd=d%7,dd=dayCfg(wd);let am=+dd.needAm||0,pm=+dd.needPm||0;
+    const used=new Set();
+    for(const s of staff){const v=p.sched[s.id][d];if(!v)continue;used.add(s.id);const[a,b]=sides(v,wd);if(a)am--;if(b)pm--}
+    while(am>0||pm>0){
+      const opts=[];
+      for(const s of staff){
+        if(used.has(s.id)||(s.max&&wk[s.id][w]>=s.max))continue;
+        const av=p.avail[s.id]&&p.avail[s.id][d];
+        const types=[];if(am>0&&pm>0)types.push('full');if(am>0)types.push('am');if(pm>0)types.push('pm');
+        for(const t of types){const f=fit(av,dd[t]);if(!f)continue;const v=ft(f.s)+'-'+ft(f.e);const[a,b]=sides(v,wd);
+          const gain=(a&&am>0?1:0)+(b&&pm>0?1:0);if(!gain)continue;
+          opts.push({s,v,a,b,len:f.e-f.s,score:gain*25+(f.full?0:-30)-hours[s.id]/60*6+Math.random()*8})}
+      }
+      if(!opts.length)break;
+      opts.sort((x,y)=>y.score-x.score);const o=opts[0];
+      p.sched[o.s.id][d]=o.v;used.add(o.s.id);hours[o.s.id]+=o.len;wk[o.s.id][w]++;if(o.a)am--;if(o.b)pm--;
+    }
+    open+=Math.max(am,0)+Math.max(pm,0);
+  }
+  return open;
+}
+
+function fixedToAvail(p,only){
+  p.avail=p.avail||{};let n=0;
+  for(const s of config.staff){if(only&&s.id!==only.sid)continue;const fx=s.fixed||{};const row=p.avail[s.id]=p.avail[s.id]||{};
+    for(const wd in fx){if(only&&String(only.wd)!==String(wd))continue;for(let w=0;w<3;w++){const d=w*7+(+wd);if(!row[d]){row[d]=fx[wd];n++}}}}
+  return n;
+}
+function unFixedAvail(p,sid,wd,v){const row=(p.avail||{})[sid];if(!row)return 0;let n=0;for(let w=0;w<3;w++){const d=w*7+(+wd);if(row[d]===v){delete row[d];n++}}return n}
+const isFixedAv=(sid,d,v)=>{const s=staffById(sid);return !!(s&&s.fixed&&s.fixed[d%7]===v)};
+/* ---------- persistence ---------- */
+const timers={},inflight={},again={},dirty=new Set();
+function setStatus(k){statusKey=k;$('#status').textContent=T(k)}
+function save(path){
+  if(!canWrite){toast(T('cantEdit'));return}
+  dirty.add(path);setStatus('saving');clearTimeout(timers[path]);timers[path]=setTimeout(()=>flush(path),600);
+}
+/* ---------- Supabase sync ---------- */
+// Fill these two in from Supabase → Project Settings → API. Leave empty to keep data in this browser only.
+const SUPABASE_URL='https://kmjvzjrhjckrcwqrshbq.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_LktP5cFfcFtuwhnnhtHDvw_6RXJ3MtQ';
+const CODE_KEY='shiftplanner.web.code';
+let teamCode='';try{teamCode=localStorage.getItem(CODE_KEY)||''}catch(e){}
+const cloud=()=>!!(SUPABASE_URL&&SUPABASE_ANON_KEY);
+async function rpc(fn,body){
+  const url=SUPABASE_URL.replace(/\/(rest\/v1\/?)?$/,'')+'/rest/v1/rpc/'+fn;
+  const go=auth=>fetch(url,{method:'POST',headers:Object.assign({'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY},auth?{Authorization:'Bearer '+SUPABASE_ANON_KEY}:{}),body:JSON.stringify(body)});
+  let r=await go(true);
+  if(r.status===401)r=await go(false);
+  const txt=await r.text();let j=null;try{j=txt?JSON.parse(txt):null}catch(e){}
+  if(!r.ok){const err=new Error((j&&j.message)||txt||('HTTP '+r.status));err.badCode=/bad code/i.test(err.message);throw err}
+  return j;
+}
+function cacheLocal(){try{localStorage.setItem(LS,JSON.stringify({config,periods}))}catch(e){}}
+async function flush(path){
+  timers[path]=null;
+  if(inflight[path]){again[path]=true;return}
+  inflight[path]=true;
+  try{
+    cacheLocal();
+    if(cloud()){
+      const id=path==='app/config'?'config':'period:'+path.split('/')[1];
+      const data=path==='app/config'?config:periods[path.split('/')[1]];
+      if(data)await rpc('save_rota',{code:teamCode,doc_id:id,doc:JSON.parse(JSON.stringify(data))});
+      else await rpc('delete_rota',{code:teamCode,doc_id:id});
+      setStatus('synced');
+    }else setStatus('savedLocal');
+  }catch(e){
+    setStatus('notSaved');if(e.badCode)askCode(true);
+  }
+  inflight[path]=false;
+  if(again[path]){again[path]=false;return flush(path)}
+  if(!timers[path])dirty.delete(path);
+}
+const savePeriod=()=>save('periods/'+cur);
+
+function loadLocal(){
+  let got=false;try{const raw=localStorage.getItem(LS);if(raw){const o=JSON.parse(raw);if(o.config){config=o.config;got=true}if(o.periods)periods=o.periods}}catch(e){}
+  if(!got){const o=clone(SEED);config=o.config;periods=o.periods;cacheLocal()}
+}
+function busyTyping(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)}
+async function pull(first){
+  const rows=await rpc('get_rota',{code:teamCode});
+  if(first&&(!rows||!rows.some(r=>r.id==='config'))){
+    // empty database: upload what this device has
+    await rpc('save_rota',{code:teamCode,doc_id:'config',doc:config});
+    for(const k in periods)await rpc('save_rota',{code:teamCode,doc_id:'period:'+k,doc:periods[k]});
+    return;
+  }
+  const seen=new Set();
+  for(const r of rows||[]){
+    if(r.id==='config'){if(!dirty.has('app/config')&&!inflight['app/config']){const d=r.data||{};config={staff:d.staff||[],days:d.days||clone(DEFAULT_DAYS)}}continue}
+    if(r.id.startsWith('period:')){const k=r.id.slice(7);seen.add(k);if(!dirty.has('periods/'+k)&&!inflight['periods/'+k])periods[k]=r.data}
+  }
+  for(const k of Object.keys(periods))if(!seen.has(k)&&!dirty.has('periods/'+k)&&!inflight['periods/'+k])delete periods[k];
+  cacheLocal();
+}
+async function connect(){
+  try{await pull(true);ready=true;pickPeriod();setStatus('synced');closeSheet();render();startPolling()}
+  catch(e){if(e.badCode){askCode(true)}else{ready=true;pickPeriod();setStatus('offline');render()}}
+}
+let pollT=null;
+function startPolling(){
+  if(pollT)return;
+  const tick=async()=>{if(document.hidden||!teamCode)return;try{await pull(false);if(statusKey==='offline')setStatus('synced');if(!busyTyping()&&!(sheetCtx&&$('#sheetHost').innerHTML))render()}catch(e){setStatus('offline')}};
+  pollT=setInterval(tick,15000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
+}
+function askCode(wrong){
+  openSheet(`<h2>${T('codeTitle')}</h2><div class="sub">${T('codeSub')}</div>
+  ${wrong?`<div class="msg err">${T('codeWrong')}</div>`:''}
+  <form class="addrow" data-form="code"><input class="inp" id="teamcode" type="password" autocomplete="current-password" placeholder="${T('codePh')}" style="flex:1 1 160px"><button class="btn pri" type="submit">${T('codeGo')}</button></form>`,{code:true});
+  setTimeout(()=>{const el=$('#teamcode');el&&el.focus()},50);
+}
+
+async function boot(){
+  render();setStatus('loading');
+  loadLocal();
+  if(!cloud()){ready=true;pickPeriod();setStatus('savedLocal');render();return}
+  if(!teamCode){askCode(false);return}
+  connect();
+}
+function pickPeriod(){const ks=Object.keys(periods).sort();if(!periods[cur])cur=ks.length?ks[ks.length-1]:null}
+
+/* ---------- render ---------- */
+function chrome(){
+  document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+  $('#h1').textContent=T('title');$('#plbl').textContent=T('periodLbl');$('#pchg').textContent=T('change');$('#langBtn').textContent=T('langBtn');
+  $('#status').textContent=T(statusKey);
+  document.querySelectorAll('.tabs button').forEach(b=>{b.textContent=T('tabs')[b.dataset.tab];b.setAttribute('aria-selected',String(b.dataset.tab===tab))});
+}
+function render(){
+  chrome();
+  const p=P();
+  $('#periodLbl').textContent=p?fmtD(p.start)+' – '+fmtD(addDays(p.start,20),true):(ready?T('noPeriod'):'—');
+  const m=$('#main');
+  if(!ready){m.innerHTML=`<div class="empty">${T('loading')}</div>`;return}
+  if(tab==='staff')m.innerHTML=renderStaff();
+  else if(tab==='shifts')m.innerHTML=renderShifts();
+  else if(!p)m.innerHTML=`<div class="empty"><p>${T('noPeriodYet')}</p><button class="btn pri" data-act="periods">${T('startPeriod')}</button></div>`;
+  else if(!config.staff.length)m.innerHTML=`<div class="empty"><p>${T('addTeamFirst')}</p><button class="btn pri" data-tab="staff">${T('goStaff')}</button></div>`;
+  else m.innerHTML=tab==='avail'?renderAvail():renderSched();
+}
+function head(p,w){
+  let h=`<thead><tr><th class="nm">${T('staffCol')}</th>`;
+  for(let i=0;i<7;i++){const iso=addDays(p.start,w*7+i);h+=`<th class="${i>=5?'we':'wd'}">${DN()[i]}<b>${dObj(iso).getUTCDate()}</b></th>`}
+  return h;
+}
+function renderAvail(){
+  const p=P();p.avail=p.avail||{};
+  let out=`<div class="bar"><button class="btn" data-act="fixavail">${T('fixAvail')}</button><button class="btn" data-act="avclear">${T('clear')}</button><p class="hint">${sampleFn?T('availHint'):T('availHintNoAI')}</p></div>
+  <div class="legend"><span><i class="sw" style="background:var(--ok-bg)"></i>${T('wholeDay')}</span><span><i class="sw" style="background:var(--part-bg)"></i>${T('someHours')}</span><span><i class="sw" style="background:var(--off-bg)"></i>${T('cantWork')}</span><span><i class="sw"></i>${T('notSent')}</span></div>`;
+  for(let w=0;w<3;w++){
+    out+=`<div class="week"><div class="wk-title">${T('week')(w+1)}</div><div class="tblwrap"><table>${head(p,w)}</tr></thead><tbody>`;
+    for(const s of config.staff){
+      const row=p.avail[s.id]||{};const sent=Object.keys(row).length>0;
+      out+=`<tr><th class="nm"><button class="nmbtn" data-act="row" data-s="${s.id}">${esc(s.name)}${w===0?`<small class="${sent?'':'ns'}">${sent?T('fillEdit'):T('notSentArrow')}</small>`:''}</button></th>`;
+      for(let i=0;i<7;i++){const d=w*7+i,v=row[d];let cls='none',t='·';
+        if(v==='x'){cls='off';t='✕'}else if(v==='all'){cls='full';t=T('allDay')}else if(v){cls='part'+(isFixedAv(s.id,d,v)?' fixedav':'');t=shortR(v)}
+        out+=`<td><button class="cell ${cls}" data-act="av" data-s="${s.id}" data-d="${d}" aria-label="${esc(s.name)} ${DN()[i]}">${t}</button></td>`}
+      out+='</tr>';
+    }
+    out+='</tbody></table></div></div>';
+  }
+  const missing=config.staff.filter(s=>!Object.keys(p.avail[s.id]||{}).length).map(s=>s.name);
+  out+=`<div class="bar"><button class="btn pri" data-act="go-sched">${T('nextDraft')}</button>${missing.length?`<span class="hint">${T('waiting')}${esc(missing.join(', '))}</span>`:''}</div>`;
+  return out;
+}
+function renderSched(){
+  const p=P();p.sched=p.sched||{};p.locks=p.locks||{};p.avail=p.avail||{};
+  let out=`<div class="bar"><button class="btn pri" data-act="draft">${T('autoDraft')}</button><button class="btn" data-act="xlsx">${T('exportXlsx')}</button><button class="btn" data-act="clear">${T('clear')}</button></div>
+  <p class="hint">${T('schedHint')}</p>`;
+  for(let w=0;w<3;w++){
+    out+=`<div class="week"><div class="wk-title">${T('week')(w+1)}</div><div class="tblwrap"><table>${head(p,w)}<th class="hrs">${T('hrs')}</th></tr></thead><tbody>`;
+    const cA=[0,0,0,0,0,0,0],cP=[0,0,0,0,0,0,0];
+    for(const s of config.staff){
+      const row=p.sched[s.id]||{},av=p.avail[s.id]||{},lk=p.locks[s.id]||{};let mins=0;
+      out+=`<tr><th class="nm"><div class="nmbtn">${esc(s.name)}</div></th>`;
+      for(let i=0;i<7;i++){const d=w*7+i,v=row[d],a=av[d];let cls,t;
+        if(v){const sd=sides(v,i);if(sd[0])cA[i]++;if(sd[1])cP[i]++;const r=rng(v);mins+=r[1]-r[0];cls='shift'+(lk[d]?' manual':'')+(within(a,v)?'':' clash');t=shortR(v)}
+        else if(a==='x'){cls='off';t=''}else if(a){cls='free';t='+'}else{cls='none';t=''}
+        out+=`<td><button class="cell ${cls}" data-act="sc" data-s="${s.id}" data-d="${d}" aria-label="${esc(s.name)} ${DN()[i]}">${t}</button></td>`}
+      out+=`<td class="hrs">${mins?(mins/60).toFixed(1).replace('.0',''):''}</td></tr>`;
+    }
+    out+=`<tr class="cov"><th class="nm">${T('staffed')}</th>`;
+    for(let i=0;i<7;i++){const dd=dayCfg(i),na=+dd.needAm||0,np=+dd.needPm||0;out+=`<td><div class="covc ${cA[i]<na?'short':'okc'}">☀ ${cA[i]}/${na}</div><div class="covc ${cP[i]<np?'short':'okc'}">☾ ${cP[i]}/${np}</div></td>`}
+    out+='<td></td></tr></tbody></table></div></div>';
+  }
+  out+=`<div class="legend"><span><i class="sw" style="box-shadow:inset 0 0 0 2px var(--accent)"></i>${T('shift')}</span><span><i class="sw" style="box-shadow:inset 0 0 0 2px var(--warn)"></i>${T('outside')}</span><span>${T('freeDay')}</span><span><i class="sw" style="background:var(--off-bg)"></i>${T('cantWork')}</span></div>`;
+  return out;
+}
+function renderStaff(){
+  let rows=config.staff.map((s,i)=>{const fx=s.fixed||{};const keys=Object.keys(fx).sort();return `<div class="staffblock"><div class="staffrow">
+    <input class="inp" id="nm-${s.id}" data-edit="name" data-s="${s.id}" value="${esc(s.name)}" aria-label="${T('name')}">
+    <input class="inp" id="mx-${s.id}" data-edit="max" data-s="${s.id}" type="number" min="1" max="7" inputmode="numeric" placeholder="–" value="${s.max||''}" aria-label="${T('maxwk')}">
+    <div class="icons"><button class="ic" data-act="up" data-i="${i}" aria-label="${T('moveUp')}" ${i===0?'disabled':''}>↑</button><button class="ic" data-act="del" data-s="${s.id}" aria-label="${T('remove')}">✕</button></div></div>
+    <div class="chips">${keys.map(k=>`<span class="chip fx"><b>${DN()[k]}</b> ${fullR(fx[k])}<button data-act="rmfix" data-s="${s.id}" data-w="${k}" aria-label="${T('removeFixed')}">✕</button></span>`).join('')}<button class="btn sm ghost" data-act="addfix" data-s="${s.id}">${T('addFixed')}</button></div></div>`}).join('');
+  return `<div class="card"><h2>${T('team')}</h2><p class="hint">${T('teamHint')}</p>
+  ${config.staff.length?`<div class="colhead"><span>${T('name')}</span><span>${T('maxwk')}</span><span></span></div>${rows}`:`<div class="empty">${T('noOne')}</div>`}
+  <form class="addrow" data-form="add"><input class="inp" id="newname" placeholder="${T('newName')}" autocomplete="off" style="flex:1 1 160px"><button class="btn pri" type="submit">${T('add')}</button></form>
+  <div id="delbox"></div></div>
+  <div class="card"><h2>${T('backup')}</h2><p class="hint">${T('backupHint')}</p><div class="bar"><button class="btn" data-act="bkexport">${T('bkExport')}</button><label class="btn filebtn">${T('bkImport')}<input type="file" accept=".json,application/json" id="bkfile"></label></div></div>`;
+}
+function renderShifts(){
+  let out=`<p class="hint">${T('shiftsHint')}</p><div class="grid2">`;
+  const tIn=(i,k,part)=>{const v=dayCfg(i)[k].split('-')[part];return `<input class="inp sm" type="time" step="900" id="t${i}${k}${part}" data-day="${i}" data-k="${k}" data-part="${part}" value="${v}" aria-label="${T(k)}">`};
+  const step=(i,k,icon,label)=>`<div class="slotrow"><span class="slotlbl">${icon} ${label}</span><div class="stepper"><button data-act="need" data-w="${i}" data-k="${k}" data-n="-1" aria-label="−1">−</button><span>${T('people')(+dayCfg(i)[k]||0)}</span><button data-act="need" data-w="${i}" data-k="${k}" data-n="1" aria-label="+1">+</button></div></div>`;
+  for(let i=0;i<7;i++){
+    out+=`<div class="card"><span class="daytag ${i>=5?'we':'wd'}" style="align-self:flex-start">${DN()[i]}</span>
+    <div class="slotlist">${step(i,'needAm','☀',T('morning'))}${step(i,'needPm','☾',T('evening'))}</div>
+    <div class="sec">${T('shiftTimes')}</div>
+    <div class="times">${['full','am','pm'].map(k=>`<div class="trow"><span>${T(k)}</span>${tIn(i,k,0)}<span>–</span>${tIn(i,k,1)}</div>`).join('')}</div>
+    ${i===0?`<button class="btn sm" data-act="copymon">${T('copyMon')}</button>`:''}</div>`;
+  }
+  return out+`</div><div><button class="btn sm" data-act="resetslots">${T('resetSlots')}</button></div>`;
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html,ctx){sheetCtx=ctx||{};$('#sheetHost').innerHTML=`<div class="scrim" data-act="close"></div><div class="sheet" role="dialog" aria-modal="true">${html}</div>`}
+function closeSheet(){if(sampleCtl){sampleCtl.abort();sampleCtl=null}$('#sheetHost').innerHTML='';sheetCtx=null}
+function dayLabel(d){const p=P();const iso=addDays(p.start,+d);return DN()[d%7]+' '+fmtD(iso)}
+function availText(v){return !v?T('noAvail'):v==='x'?T('cantWork'):v==='all'?T('availAll'):T('availR')(fullR(v))}
+function presets(){const set=new Set();for(let i=0;i<7;i++){const dd=dayCfg(i);['full','am','pm'].forEach(k=>set.add(dd[k]))}['10:30-17:00','11:00-21:30','11:00-22:00'].forEach(v=>set.add(v));config.staff.forEach(st=>Object.values(st.fixed||{}).forEach(v=>set.add(v)));return[...set].sort((a,b)=>tm(a)-tm(b)||tm(a.split('-')[1])-tm(b.split('-')[1]))}
+
+function sheetAvail(sid,d){
+  const p=P(),v=(p.avail[sid]||{})[d];
+  openSheet(`<h2>${esc(staffById(sid).name)} · ${dayLabel(d)}</h2><div class="sub">${availText(v)}</div>
+  <div class="opts"><button class="opt offo ${v==='x'?'on':''}" data-act="setav" data-v="x">✕ ${T('cantWork')}</button><button class="opt fullo ${v==='all'?'on':''}" data-act="setav" data-v="all">${T('wholeDay')}</button>
+  ${presets().map(r=>`<button class="opt parto ${v===r?'on':''}" data-act="setav" data-v="${r}">${fullR(r)}</button>`).join('')}</div>
+  <div class="sec">${T('otherHours')}</div>
+  <form class="addrow" data-form="avcustom"><input class="inp sm" type="time" id="avs" value="${v&&rng(v)?v.split('-')[0]:'17:00'}" step="900" aria-label="${T('start')}"><span>–</span><input class="inp sm" type="time" id="ave" value="${v&&rng(v)?v.split('-')[1]:'21:30'}" step="900" aria-label="${T('end')}"><button class="btn sm pri" type="submit">${T('set')}</button></form>
+  <div class="bar"><button class="btn sm" data-act="setav" data-v="">${T('clear')}</button><button class="btn sm" data-act="close">${T('done')}</button></div>`,{sid,d});
+}
+function sheetRow(sid){
+  const s=staffById(sid),p=P();
+  openSheet(`<h2>${esc(s.name)}</h2><div class="sub">${fmtD(p.start)} – ${fmtD(addDays(p.start,20),true)}</div>
+  <div class="sec">${T('fillFrom')}</div>
+  <textarea class="inp" id="pastetxt" placeholder="${T('pasteLocal')}"></textarea>
+  <div class="hint" style="font-size:.78rem">${T('fmtHint')}</div>
+  <div class="bar"><button class="btn pri" data-act="readtxt">${T('readMsg')}</button></div>
+  <div id="readmsg"></div>
+  <div class="sec">${T('quickFill')}</div>
+  <div class="bar"><button class="btn sm" data-act="rowall">${T('availEvery')}</button><button class="btn sm" data-act="rowclear">${T('clearAll')}</button><button class="btn sm" data-act="close">${T('done')}</button></div>`,{sid});
+}
+function sheetShift(sid,d){
+  const p=P(),v=(p.sched[sid]||{})[d],a=(p.avail[sid]||{})[d];
+  const dd=dayCfg(d%7);const slots=[...new Set([dd.full,dd.am,dd.pm])];
+  if(a&&rng(a)&&!slots.includes(a))slots.push(a);
+  openSheet(`<h2>${esc(staffById(sid).name)} · ${dayLabel(d)}</h2><div class="sub">${availText(a)}${v?T('working')(fullR(v)):''}</div>
+  <div class="opts">${slots.map(r=>{const ok=within(a,r);return`<button class="opt ${v===r?'on':''} ${a&&!ok?'offo':''}" data-act="setsh" data-v="${r}">${fullR(r)}${a&&!ok?' ⚠':''}</button>`}).join('')}</div>
+  <div class="sec">${T('otherHours')}</div>
+  <form class="addrow" data-form="shcustom"><input class="inp sm" type="time" id="shs" value="${v?v.split('-')[0]:'11:00'}" step="900" aria-label="${T('start')}"><span>–</span><input class="inp sm" type="time" id="she" value="${v?v.split('-')[1]:'21:30'}" step="900" aria-label="${T('end')}"><button class="btn sm pri" type="submit">${T('set')}</button></form>
+  <div class="bar">${v?`<button class="btn sm danger" data-act="setsh" data-v="">${T('removeShift')}</button>`:''}<button class="btn sm" data-act="close">${T('done')}</button></div>`,{sid,d});
+}
+function sheetFixed(sid){
+  const s=staffById(sid);
+  openSheet(`<h2>${T('fixedTitle')(esc(s.name))}</h2><div class="sub">${T('fixedSub')}</div>
+  <form class="addrow" data-form="fix" style="flex-direction:column;align-items:stretch;gap:10px">
+    <select class="inp" id="fxday" aria-label="${T('day')}">${DN().map((n,i)=>`<option value="${i}">${n}</option>`).join('')}</select>
+    <div class="opts">${presets().map(r=>`<button type="button" class="opt" data-act="fxpre" data-v="${r}">${fullR(r)}</button>`).join('')}</div>
+    <div class="addrow"><input class="inp sm" type="time" id="fxs" value="11:00" step="900" aria-label="${T('start')}"><span>–</span><input class="inp sm" type="time" id="fxe" value="21:30" step="900" aria-label="${T('end')}"></div>
+    <div class="bar"><button class="btn pri" type="submit">${T('saveFixed')}</button><button class="btn" type="button" data-act="close">${T('cancel')}</button></div>
+  </form>`,{sid});
+}
+function sheetPeriods(){
+  const ks=Object.keys(periods).sort().reverse();
+  const last=ks[0];const next=last?addDays(last,21):nextMonday();
+  openSheet(`<h2>${T('periodsTitle')}</h2>
+  <div class="plist">${ks.map(k=>`<button class="pitem ${k===cur?'on':''}" data-act="pick" data-k="${k}"><span>${fmtD(k)} – ${fmtD(addDays(k,20),true)}</span><small>${T('sent')(countAvail(periods[k]),config.staff.length)}</small></button>`).join('')||`<div class="hint">${T('noneYet')}</div>`}</div>
+  <div class="sec">${T('newPeriod')}</div>
+  <form class="addrow" data-form="newp"><input class="inp sm" type="date" id="pstart" value="${next}" aria-label="${T('pickMonday')}"><button class="btn sm pri" type="submit">${T('create')}</button></form>
+  <div class="hint" style="font-size:.78rem">${T('pickMonday')}</div>
+  ${cur?`<div id="pdel"><button class="btn sm danger" data-act="pdel">${T('delPeriod')(fmtD(cur))}</button></div>`:''}
+  <div class="bar"><button class="btn sm" data-act="close">${T('done')}</button></div>`);
+}
+function countAvail(p){return config.staff.filter(s=>Object.keys((p.avail||{})[s.id]||{}).length).length}
+function nextMonday(){const t=new Date();const iso=new Date(Date.UTC(t.getFullYear(),t.getMonth(),t.getDate())).toISOString().slice(0,10);const wd=(dObj(iso).getUTCDay()+6)%7;return addDays(iso,wd===0?7:7-wd)}
+
+/* ---------- local text reader (no AI) ---------- */
+function parseLocal(text,start){
+  const row={};let n=0;
+  const parts=String(text).replace(/[;\n]+/g,',').split(',');
+  for(let raw of parts){
+    raw=raw.trim().toLowerCase();if(!raw)continue;
+    const m=raw.match(/^(\d{1,2})(?:[\/.]\d{1,2})?\s*[:=\-–]?\s*(.+)$/);if(!m)continue;
+    const day=+m[1];let val=m[2].trim();
+    let idx=-1;for(let i=0;i<21;i++){if(dObj(addDays(start,i)).getUTCDate()===day){idx=i;break}}
+    if(idx<0)continue;
+    let v=null;
+    if(/^(x|✕|off|nghỉ|nghi|no|休|休息|不)/.test(val))v='x';
+    else if(/^(all|whole|full|cả ngày|ca ngay|全天|ok)/.test(val))v='all';
+    else{val=val.replace(/\s/g,'').replace(/h(\d{2})/g,':$1').replace(/h/g,'');v=normRange(val)}
+    if(v){row[idx]=v;n++}
+  }
+  return{row,n};
+}
+/* ---------- reading availability with Claude ---------- */
+const EN_DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+async function readAvail(sid,{file,text}){
+  const p=P(),box=$('#readmsg');if(!box)return;
+  const dates=[...Array(21)].map((_,i)=>addDays(p.start,i)+' '+EN_DAYS[i%7]).join(', ');
+  const src=file?'The attached screenshot shows a calendar of the days they can work. Vietnamese weekday labels may appear: T2=Mon, T3=Tue, T4=Wed, T5=Thu, T6=Fri, T7=Sat, CN=Sun. Chinese labels may appear: 周一/星期一=Mon … 周日/星期日=Sun. A cross or X means they cannot work that day. "Whole day" or 全天 means available all day. Times like 17h-21h30 mean 17:00-21:30.':'They wrote this message (it may be in any language, including Chinese or Vietnamese):\n"""\n'+text.slice(0,4000)+'\n"""';
+  const prompt=`You are reading one restaurant employee's availability for a 3-week rota from ${p.start} to ${addDays(p.start,20)}. The dates in the period are: ${dates}.\n${src}\nReply with ONLY a JSON object. Keys are dates (YYYY-MM-DD) inside the period. Values are "off" (cannot work), "all" (available the whole day), or a 24-hour range "HH:MM-HH:MM". Leave out dates the source does not cover. Example: {"2026-10-05":"off","2026-10-06":"17:00-21:30","2026-10-08":"all"}`;
+  box.innerHTML=`<div class="msg">${T('reading')}</div>`;
+  sampleCtl=new AbortController();
+  try{
+    const opts={signal:sampleCtl.signal};if(file)opts.images=file;
+    const res=await sampleFn.json(prompt,opts);
+    const row={};let n=0;
+    for(const k in res||{}){let i=Math.round((dObj(k)-dObj(p.start))/864e5);if(!(i>=0&&i<21))continue;const raw=String(res[k]).toLowerCase().trim();let v=null;
+      if(/^(off|x|no)$/.test(raw))v='x';else if(/^(all|whole)/.test(raw))v='all';else v=normRange(raw);if(v){row[i]=v;n++}}
+    if(!n){box.innerHTML=`<div class="msg err">${T('noDates')}</div>`;return}
+    p.avail[sid]=Object.assign(p.avail[sid]||{},row);savePeriod();render();
+    box.innerHTML=`<div class="msg">${T('filled')(n)}</div>`;
+  }catch(e){
+    const c=e&&e.code;const map={cancelled:'',rate_limited:T('errRate'),image_rejected:T('errImg'),invalid_json:T('errJson'),refused:T('errRefused'),session_expired:T('errSession')};
+    if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){sampleFn=null;box.innerHTML=`<div class="msg err">${T('errOff')}</div>`;return}
+    if(c==='images_unavailable'){box.innerHTML=`<div class="msg err">${T('errNoImg')}</div>`;return}
+    const m=c in map?map[c]:T('errAny');box.innerHTML=m?`<div class="msg err">${m}</div>`:'';
+  }finally{sampleCtl=null}
+}
+
+/* ---------- excel export ---------- */
+function saveFile(name,blob){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
+function loadXLSX(){return new Promise((res,rej)=>{if(window.XLSX)return res(window.XLSX);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>res(window.XLSX);s.onerror=()=>rej();document.head.appendChild(s)})}
+async function exportXlsx(){
+  const p=P();let X;
+  try{X=await loadXLSX()}catch(e){toast(T('xlsxLoad'));return}
+  const aoa=[];
+  for(let w=0;w<3;w++){
+    aoa.push(['',...[0,1,2,3,4,5,6].map(i=>dObj(addDays(p.start,w*7+i)).getUTCDate())]);
+    for(const s of config.staff)aoa.push([s.name,...[0,1,2,3,4,5,6].map(i=>{const v=(p.sched[s.id]||{})[w*7+i];return v?v:''})]);
+    aoa.push([]);
+  }
+  const ws=X.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:12},...Array(7).fill({wch:13})];
+  const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,T('sheetName'));
+  const buf=X.write(wb,{bookType:'xlsx',type:'array'});
+  saveFile(`schedule-${p.start}.xlsx`,new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));toast(T('xlsxSaved'));
+}
+
+/* ---------- events ---------- */
+let toastT;function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3200)}
+document.addEventListener('click',e=>{
+  const tb=e.target.closest('[data-tab]');if(tb&&!e.target.closest('[data-act]')){tab=tb.dataset.tab;closeSheet();render();window.scrollTo({top:0});return}
+  const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act,p=P();
+  const ctx=sheetCtx;
+  switch(a){
+    case 'lang':lang=lang==='zh'?'en':'zh';try{localStorage.setItem('shiftplanner.lang',lang)}catch(e){}closeSheet();render();break;
+    case 'close':if(sheetCtx&&sheetCtx.code)break;closeSheet();break;
+    case 'bkexport':saveFile('shift-planner-backup-'+new Date().toISOString().slice(0,10)+'.json',new Blob([JSON.stringify({config,periods},null,1)],{type:'application/json'}));toast(T('bkDone'));break;
+    case 'avclear':if(!canWrite)break;openSheet(`<h2>${T('avClearQ')}</h2><div class="sub">${T('avClearSub')}</div><div class="bar"><button class="btn pri" data-act="avclearkeep">${T('clearKeep')}</button><button class="btn danger" data-act="avclearall">${T('clearAllBtn')}</button><button class="btn" data-act="close">${T('cancel')}</button></div>`);break;
+    case 'avclearkeep':p.avail={};fixedToAvail(p);savePeriod();closeSheet();render();toast(T('avClearedKept'));break;
+    case 'avclearall':p.avail={};savePeriod();closeSheet();render();toast(T('cleared'));break;
+    case 'fixavail':{if(!p||!canWrite)break;const n=fixedToAvail(p);savePeriod();render();toast(T('fixAvailDone')(n));break}
+    case 'periods':sheetPeriods();break;
+    case 'pick':cur=b.dataset.k;closeSheet();render();break;
+    case 'pdel':$('#pdel').innerHTML=`<div class="confirm">${T('delPeriodQ')} <button class="btn sm danger" data-act="pdel2">${T('del')}</button><button class="btn sm" data-act="close">${T('keep')}</button></div>`;break;
+    case 'pdel2':{const k=cur;delete periods[k];save('periods/'+k);pickPeriod();closeSheet();render();break}
+    case 'go-sched':tab='sched';render();window.scrollTo({top:0});break;
+    case 'av':if(canWrite)sheetAvail(b.dataset.s,+b.dataset.d);break;
+    case 'row':if(canWrite)sheetRow(b.dataset.s);break;
+    case 'sc':if(canWrite)sheetShift(b.dataset.s,+b.dataset.d);break;
+    case 'setav':{const row=p.avail[ctx.sid]=p.avail[ctx.sid]||{};if(b.dataset.v)row[ctx.d]=b.dataset.v;else delete row[ctx.d];savePeriod();closeSheet();render();break}
+    case 'setsh':{p.sched[ctx.sid]=p.sched[ctx.sid]||{};p.locks[ctx.sid]=p.locks[ctx.sid]||{};if(b.dataset.v){p.sched[ctx.sid][ctx.d]=b.dataset.v;p.locks[ctx.sid][ctx.d]=true}else{delete p.sched[ctx.sid][ctx.d];delete p.locks[ctx.sid][ctx.d]}savePeriod();closeSheet();render();break}
+    case 'rowall':{const r={};for(let i=0;i<21;i++)r[i]='all';p.avail[ctx.sid]=r;savePeriod();render();toast(T('markedAll'));break}
+    case 'rowclear':{p.avail[ctx.sid]={};savePeriod();render();toast(T('cleared'));break}
+    case 'readtxt':{const t=$('#pastetxt').value.trim();if(!t){toast(T('pasteFirst'));break}const r=parseLocal(t,p.start);const box=$('#readmsg');if(!r.n){box.innerHTML=`<div class="msg err">${T('noDates')}</div>`;break}p.avail[ctx.sid]=Object.assign(p.avail[ctx.sid]||{},r.row);savePeriod();render();box.innerHTML=`<div class="msg">${T('filled')(r.n)}</div>`;break}
+    case 'draft':{if(!canWrite)break;const open=draft(p);savePeriod();render();toast(T('drafted')(open));break}
+    case 'clear':openSheet(`<h2>${T('clearQ')}</h2><div class="sub">${T('clearSub')}</div><div class="bar"><button class="btn danger" data-act="clear2">${T('clearBtn')}</button><button class="btn" data-act="close">${T('cancel')}</button></div>`);break;
+    case 'clear2':p.sched={};p.locks={};savePeriod();closeSheet();render();break;
+    case 'xlsx':exportXlsx();break;
+    case 'up':{const i=+b.dataset.i;const s=config.staff;[s[i-1],s[i]]=[s[i],s[i-1]];save('app/config');render();break}
+    case 'del':{const s=staffById(b.dataset.s);$('#delbox').innerHTML=`<div class="confirm">${T('removeQ')(esc(s.name))} <button class="btn sm danger" data-act="del2" data-s="${s.id}">${T('remove')}</button><button class="btn sm" data-act="delno">${T('keep')}</button></div>`;break}
+    case 'delno':$('#delbox').innerHTML='';break;
+    case 'del2':config.staff=config.staff.filter(x=>x.id!==b.dataset.s);save('app/config');render();break;
+    case 'addfix':sheetFixed(b.dataset.s);break;
+    case 'fxpre':{const[x,y]=b.dataset.v.split('-');$('#fxs').value=x;$('#fxe').value=y;document.querySelectorAll('[data-act="fxpre"]').forEach(o=>o.classList.toggle('on',o===b));break}
+    case 'rmfix':{const s=staffById(b.dataset.s);if(s&&s.fixed){const v=s.fixed[b.dataset.w];delete s.fixed[b.dataset.w];save('app/config');if(p&&unFixedAvail(p,s.id,b.dataset.w,v))savePeriod();render()}break}
+    case 'need':{const w=b.dataset.w,k=b.dataset.k;config.days=config.days||clone(DEFAULT_DAYS);const dd=config.days[w]=config.days[w]||clone(DEFAULT_DAYS[w]);dd[k]=Math.max(0,Math.min(20,(+dd[k]||0)+(+b.dataset.n)));save('app/config');render();break}
+    case 'copymon':config.days=config.days||clone(DEFAULT_DAYS);for(const k of ['1','2','3'])config.days[k]=clone(dayCfg(0));save('app/config');render();toast(T('copied'));break;
+    case 'resetslots':config.days=clone(DEFAULT_DAYS);save('app/config');render();break;
+  }
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='bkfile'&&e.target.files&&e.target.files[0]){const fr=new FileReader();fr.onload=()=>{try{const o=JSON.parse(fr.result);if(!o.config||!o.config.staff)throw 0;config=o.config;periods=o.periods||{};cur=null;pickPeriod();cacheLocal();save('app/config');Object.keys(periods).forEach(k=>save('periods/'+k));render();toast(T('bkLoaded'))}catch(_){toast(T('bkBad'))}};fr.readAsText(e.target.files[0]);return}
+  const t=e.target;if(t.dataset&&t.dataset.day!==undefined){const i=t.dataset.day,k=t.dataset.k,pt=+t.dataset.part;config.days=config.days||clone(DEFAULT_DAYS);const dd=config.days[i]=config.days[i]||clone(DEFAULT_DAYS[i]);const parts=dd[k].split('-');parts[pt]=t.value;const v=normRange(parts.join('-'));if(!v){toast(T('endAfter'));t.value=dd[k].split('-')[pt];return}dd[k]=v;save('app/config');return}
+  if(e.target.id==='shot'&&e.target.files&&e.target.files[0]&&sheetCtx)readAvail(sheetCtx.sid,{file:e.target.files[0]});
+});
+document.addEventListener('paste',e=>{
+  if(!sheetCtx||!sheetCtx.sid||!$('#pastetxt'))return;
+  const items=[...((e.clipboardData&&e.clipboardData.items)||[])];const it=null;
+  if(!it)return;const f=it.getAsFile();if(!f)return;e.preventDefault();readAvail(sheetCtx.sid,{file:f});
+});
+
+document.addEventListener('drop',e=>{
+  if(!sheetCtx||!sheetCtx.sid||!$('#pastetxt'))return;const f=null;
+  if(!f)return;e.preventDefault();readAvail(sheetCtx.sid,{file:f});
+});
+document.addEventListener('input',e=>{
+  const t=e.target;if(!t.dataset||!t.dataset.edit)return;const s=staffById(t.dataset.s);if(!s)return;
+  if(t.dataset.edit==='name'){s.name=t.value.trim()||s.name}else{const n=parseInt(t.value,10);if(n>0)s.max=n;else delete s.max}
+  save('app/config');
+});
+document.addEventListener('submit',e=>{
+  e.preventDefault();const f=e.target.dataset.form,p=P(),ctx=sheetCtx;
+  if(f==='code'){const v=$('#teamcode').value.trim();if(!v)return;teamCode=v;try{localStorage.setItem(CODE_KEY,v)}catch(_){}setStatus('loading');connect();return}
+  if(f==='add'){const n=$('#newname').value.trim();if(!n)return;config.staff.push({id:'s'+Date.now().toString(36),name:n});save('app/config');render();setTimeout(()=>{const el=$('#newname');el&&el.focus()},0)}
+  else if(f==='fix'){const s=staffById(ctx.sid);const v=normRange($('#fxs').value+'-'+$('#fxe').value);if(!v){toast(T('endAfter'));return}
+    const wd=$('#fxday').value;const old=(s.fixed||{})[wd];s.fixed=s.fixed||{};s.fixed[wd]=v;save('app/config');if(p){if(old)unFixedAvail(p,s.id,wd,old);const n=fixedToAvail(p,{sid:s.id,wd});savePeriod();toast(T('fixAvailDone')(n))}closeSheet();render()}
+  else if(f==='avcustom'){const v=normRange($('#avs').value+'-'+$('#ave').value);if(!v){toast(T('endAfter'));return}(p.avail[ctx.sid]=p.avail[ctx.sid]||{})[ctx.d]=v;savePeriod();closeSheet();render()}
+  else if(f==='shcustom'){const v=normRange($('#shs').value+'-'+$('#she').value);if(!v){toast(T('endAfter'));return}(p.sched[ctx.sid]=p.sched[ctx.sid]||{})[ctx.d]=v;(p.locks[ctx.sid]=p.locks[ctx.sid]||{})[ctx.d]=true;savePeriod();closeSheet();render()}
+  else if(f==='newp'){const iso=$('#pstart').value;if(!iso)return;if(dObj(iso).getUTCDay()!==1){toast(T('pickMon'));return}
+    if(!periods[iso]){periods[iso]={start:iso,avail:{},sched:{},locks:{}};save('periods/'+iso)}cur=iso;tab='avail';closeSheet();render()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!(sheetCtx&&sheetCtx.code)&&sheetCtx!==null&&$('#sheetHost').innerHTML)closeSheet()});
+boot();
+})();
+</script>
+
+</body>
+</html>

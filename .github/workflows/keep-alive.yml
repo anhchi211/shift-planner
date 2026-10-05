@@ -1,0 +1,38 @@
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "17 6 */3 * *"   # every 3 days at 06:17 UTC
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          # Calls the rota function with a dummy code. The database answers "bad code",
+          # which still counts as activity and reads/changes nothing.
+          code=$(curl -s -o /tmp/out.txt -w "%{http_code}" -X POST \
+            "https://kmjvzjrhjckrcwqrshbq.supabase.co/rest/v1/rpc/get_rota" \
+            -H "Content-Type: application/json" \
+            -H "apikey: sb_publishable_LktP5cFfcFtuwhnnhtHDvw_6RXJ3MtQ" \
+            -d '{"code":"keep-alive-ping"}')
+          echo "Supabase answered HTTP $code"; cat /tmp/out.txt; echo
+          if [ "$code" = "000" ] || [ "$code" -ge 500 ]; then
+            echo "::error::Supabase did not answer. The project may be paused — open supabase.com and press Restore."
+            exit 1
+          fi
+
+      - name: Record the ping (keeps this scheduled job from being switched off)
+        uses: actions/checkout@v4
+      - run: |
+          date -u +"%Y-%m-%d %H:%M UTC" > last-ping.txt
+          git config user.name "keep-alive-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add last-ping.txt
+          git commit -m "Keep-alive ping" || echo "nothing to commit"
+          git push
